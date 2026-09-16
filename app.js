@@ -114,6 +114,7 @@ function render() {
   const app = document.getElementById('app');
   if (state.tab === 'home') app.innerHTML = renderHome();
   else if (state.tab === 'add') app.innerHTML = renderAdd();
+  else if (state.tab === 'edit') app.innerHTML = renderEdit(); 
   else if (state.tab === 'rel') app.innerHTML = renderRel();
   else if (state.tab === 'fixas') app.innerHTML = renderFixas();
   bindEventos();
@@ -172,6 +173,7 @@ function renderItem(l) {
         <div class="sub">${cat?.nome || ''} · ${l.tipo === 'FIXA' ? '🔁 Fixo' : '📊 Variável'}</div>
       </div>
       <div class="valor">${fmtMoney(l.valor)}</div>
+      <button class="del" data-action="edit-lanc" data-id="${l.id}">✏️</button>
       <button class="del" data-action="del-lanc" data-id="${l.id}">🗑️</button>
     </div>
   `;
@@ -220,7 +222,50 @@ function renderAdd() {
     </div>
   `;
 }
+function renderEdit() {
+  const l = db.lancamentos.find(x => x.id == state.editId);
+  if (!l) { state.tab = 'home'; render(); return ''; }
 
+  return `
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <h2 style="font-size:16px;">Editar gasto</h2>
+        <button id="btn-cancelar" style="background:none;border:none;color:var(--sub);font-size:14px;cursor:pointer;">Cancelar</button>
+      </div>
+
+      <label>Descrição</label>
+      <input id="e-desc" type="text" value="${escape(l.descricao)}">
+
+      <label>Valor (R$)</label>
+      <input id="e-valor" type="number" inputmode="decimal" step="0.01" value="${l.valor}">
+
+      <label>Data</label>
+      <input id="e-data" type="date" value="${l.data}">
+
+      <label>Tipo</label>
+      <div class="toggle" id="e-tipo">
+        <button data-tipo="VARIAVEL" class="${l.tipo === 'VARIAVEL' ? 'ativo' : ''}">📊 Variável</button>
+        <button data-tipo="FIXA" class="${l.tipo === 'FIXA' ? 'ativo' : ''}">🔁 Fixo</button>
+      </div>
+
+      <label>Categoria</label>
+      <select id="e-cat">
+        ${db.categorias.map(cat => `
+          <option value="${cat.id}" ${cat.id == l.categoriaId ? 'selected' : ''}>
+            ${cat.icone} ${cat.nome}
+          </option>
+        `).join('')}
+      </select>
+
+      <label>Ícone</label>
+      <div class="icones-grid" id="e-icones">
+        ${EMOJIS.map(e => `<button data-emoji="${e}" class="${l.icone === e ? 'sel' : ''}">${e}</button>`).join('')}
+      </div>
+
+      <button class="btn-primario" id="btn-salvar-edit">Salvar alterações</button>
+    </div>
+  `;
+}
 // ============ TELA: RELATÓRIOS ============
 function renderRel() {
   const filtrados = filtrarRel();
@@ -391,6 +436,37 @@ function bindEventos() {
     db.lancamentos = db.lancamentos.filter(l => l.id != b.dataset.id);
     salvar(); toast('Excluído'); render();
   });
+    // Editar lançamento
+  document.querySelectorAll('[data-action="edit-lanc"]').forEach(b => b.onclick = () => {
+    state.editId = +b.dataset.id;
+    state.tab = 'edit';
+    render();
+  });
+
+  // Eventos da tela de edição
+  if (state.tab === 'edit') {
+    const cancelar = document.getElementById('btn-cancelar');
+    if (cancelar) cancelar.onclick = () => { state.tab = 'home'; render(); };
+
+    const eTipo = document.getElementById('e-tipo');
+    if (eTipo) {
+      eTipo.querySelectorAll('button').forEach(btn => btn.onclick = () => {
+        eTipo.querySelectorAll('button').forEach(x => x.classList.remove('ativo'));
+        btn.classList.add('ativo');
+      });
+    }
+
+    const eIcones = document.getElementById('e-icones');
+    if (eIcones) {
+      eIcones.querySelectorAll('button').forEach(btn => btn.onclick = () => {
+        eIcones.querySelectorAll('button').forEach(x => x.classList.remove('sel'));
+        btn.classList.add('sel');
+      });
+    }
+
+    const btnSalvar = document.getElementById('btn-salvar-edit');
+    if (btnSalvar) btnSalvar.onclick = salvarEdicao;
+  }
 
   // Excluir fixa
   document.querySelectorAll('[data-action="del-fixa"]').forEach(b => b.onclick = () => {
@@ -485,6 +561,33 @@ function salvarFixa() {
   });
   salvar();
   toast('Fixa adicionada!');
+  render();
+}
+function salvarEdicao() {
+  const l = db.lancamentos.find(x => x.id == state.editId);
+  if (!l) return;
+
+  const desc = document.getElementById('e-desc').value.trim();
+  const valor = parseFloat(document.getElementById('e-valor').value);
+  const data = document.getElementById('e-data').value;
+  const catId = parseInt(document.getElementById('e-cat').value);
+  const tipo = document.querySelector('#e-tipo button.ativo')?.dataset.tipo || l.tipo;
+  const icone = document.querySelector('#e-icones button.sel')?.dataset.emoji || l.icone;
+
+  if (!desc) return alert('Preencha a descrição');
+  if (!valor || valor <= 0) return alert('Preencha um valor válido');
+
+  l.descricao = desc;
+  l.valor = valor;
+  l.data = data;
+  l.categoriaId = catId;
+  l.tipo = tipo;
+  l.icone = icone;
+
+  salvar();
+  state.tab = 'home';
+  state.mesRef = data.slice(0, 7);
+  toast('Alterado!');
   render();
 }
 
