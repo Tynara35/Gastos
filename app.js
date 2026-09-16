@@ -84,14 +84,11 @@ let state = {
 
 // ============ RECORRÊNCIA (gera fixas do mês) ============
 function garantirFixasDoMes(ym) {
-  // ym = "2025-09" (o mês que está sendo exibido)
   if (!ym) {
     const hoje = new Date();
     ym = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
   }
 
-  // Só cria para o mês atual ou meses FUTUROS.
-  // Meses passados ficam intactos (pra não bagunçar histórico).
   const hoje = new Date();
   const mesAtualStr = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
   if (ym < mesAtualStr) return;
@@ -99,23 +96,40 @@ function garantirFixasDoMes(ym) {
   let adicionou = false;
   db.fixas.filter(f => f.ativa).forEach(f => {
     const jaTem = db.lancamentos.some(l => l.fixaId === f.id && l.data.startsWith(ym));
-    if (!jaTem) {
-      const dia = String(Math.min(f.diaVencimento, 28)).padStart(2, '0');
-      db.lancamentos.push({
-        id: novoId('lancamento'),
-        descricao: f.descricao,
-        valor: f.valorPadrao,
-        data: `${ym}-${dia}`,
-        tipo: 'FIXA',
-        categoriaId: f.categoriaId,
-        icone: f.icone,
-        status: 'PENDENTE',
-        fixaId: f.id,
-      });
-      adicionou = true;
+    if (jaTem) return;
+
+    // Verifica se a fixa tem parcelamento
+    let parcelaInfo = null;
+    if (f.parcelas && f.parcelas.inicio && f.parcelas.total) {
+      parcelaInfo = calcularParcela(f.parcelas.inicio, f.parcelas.total, ym);
+      if (!parcelaInfo) return;   // ⬅️ fora do range: não cria nada
     }
+
+    const dia = String(Math.min(f.diaVencimento, 28)).padStart(2, '0');
+    db.lancamentos.push({
+      id: novoId('lancamento'),
+      descricao: f.descricao,
+      valor: f.valorPadrao,
+      data: `${ym}-${dia}`,
+      tipo: 'FIXA',
+      categoriaId: f.categoriaId,
+      icone: f.icone,
+      cor: f.cor || null,
+      parcela: parcelaInfo,         // ⬅️ NOVO: { atual, total } ou null
+      status: 'PENDENTE',
+      fixaId: f.id,
+    });
+    adicionou = true;
   });
   if (adicionou) salvar();
+}
+function calcularParcela(inicioYM, total, mesAlvo) {
+  const [ai, mi] = inicioYM.split('-').map(Number);
+  const [am, mm] = mesAlvo.split('-').map(Number);
+  const diff = (am - ai) * 12 + (mm - mi);
+  const atual = diff + 1;
+  if (atual < 1 || atual > total) return null;
+  return { atual, total };
 }
 
 // ============ RENDER PRINCIPAL ============
@@ -180,7 +194,7 @@ function renderItem(l) {
       <span class="icone" style="background:${cat?.cor || '#334155'}33">${l.icone}</span>
       <div class="info">
         <div class="desc">${escape(l.descricao)}</div>
-        <div class="sub">${cat?.nome || ''} · ${l.tipo === 'FIXA' ? '🔁 Fixo' : '📊 Variável'}</div>
+        <div class="sub">${cat?.nome || ''} · ${l.tipo === 'FIXA' ? '🔁 Fixo' : '📊 Variável'}${l.parcela ? ` · Parcela ${l.parcela.atual}/${l.parcela.total}` : ''}</div>
       </div>
       <div class="valor">${fmtMoney(l.valor)}</div>
       <button class="del" data-action="edit-lanc" data-id="${l.id}">✏️</button>
@@ -400,7 +414,12 @@ function renderFixas() {
       <div class="icones-grid" id="fx-icones">
         ${EMOJIS.map(e => `<button data-emoji="${e}" class="${e === '🏠' ? 'sel' : ''}">${e}</button>`).join('')}
       </div>
-
+      <label>Parcelamento (opcional)</label>
+      <p style="font-size:11px;color:var(--sub);margin-bottom:6px;">
+        Preencha se for empréstimo, financiamento ou compra parcelada.
+      </p>
+      <input id="fx-parc-inicio" type="month" placeholder="Mês da 1ª parcela">
+      <input id="fx-parc-total" type="number" min="1" placeholder="Total de parcelas (ex: 12)" style="margin-top:6px;">
       <button class="btn-primario" id="btn-add-fixa">Adicionar fixa</button>
     </div>
 
@@ -410,12 +429,25 @@ function renderFixas() {
           ${db.fixas.map(f => {
         const cat = db.categorias.find(c => c.id == f.categoriaId);
         const qtd = db.lancamentos.filter(l => l.fixaId === f.id).length;
+
+        // Info de parcelamento (se houver)
+        let infoParc = '';
+        if (f.parcelas && f.parcelas.inicio && f.parcelas.total) {
+          const info = calcularParcela(f.parcelas.inicio, f.parcelas.total, mesAtual());
+          if (info) {
+            const faltam = info.total - info.atual;
+            infoParc = ` · Parcela ${info.atual}/${info.total}` + (faltam > 0 ? ` · faltam ${faltam}` : ' · ÚLTIMA!');
+          } else {
+            infoParc = ` · encerrado (${f.parcelas.total}/${f.parcelas.total})`;
+          }
+        }
+
         return `
           <div class="lanc">
             <span class="icone" style="background:${cat?.cor || '#334155'}33">${f.icone}</span>
             <div class="info">
               <div class="desc">${escape(f.descricao)}</div>
-              <div class="sub">${cat?.nome || ''} · todo dia ${f.diaVencimento} · ${qtd} lançamento${qtd === 1 ? '' : 's'}</div>
+              <div class="sub">${cat?.nome || ''} · todo dia ${f.diaVencimento}${infoParc}</div>
             </div>
             <div class="valor">${fmtMoney(f.valorPadrao)}</div>
             <button class="del" data-action="arq-fixa" data-id="${f.id}" title="Arquivar (mantém histórico)">🔕</button>
@@ -630,7 +662,19 @@ function salvarFixa() {
   const catId = parseInt(document.getElementById('fx-cat').value);
   const icone = document.querySelector('#fx-icones button.sel')?.dataset.emoji || '🔁';
 
+  const parcInicio = document.getElementById('fx-parc-inicio').value;
+  const parcTotal = parseInt(document.getElementById('fx-parc-total').value);
+
   if (!desc || !valor || !dia) return alert('Preencha tudo');
+
+  // Validação das parcelas (opcional)
+  let parcelas = null;
+  if (parcInicio || parcTotal) {
+    if (!parcInicio || !parcTotal || parcTotal < 1) {
+      return alert('Preencha o mês da 1ª parcela e o total de parcelas (ou deixe os dois vazios).');
+    }
+    parcelas = { inicio: parcInicio, total: parcTotal };
+  }
 
   db.fixas.push({
     id: novoId('fixa'),
@@ -639,11 +683,15 @@ function salvarFixa() {
     diaVencimento: dia,
     categoriaId: catId,
     icone,
+    cor: state.fxFixaCor || null,
+    parcelas,                       // ⬅️ NOVO
     ativa: true,
   });
   salvar();
+  state.fxFixaCor = null;
   toast('Fixa adicionada!');
   render();
+}
 }
 function salvarEdicao() {
   const l = db.lancamentos.find(x => x.id == state.editId);
