@@ -422,6 +422,19 @@ function renderFixas() {
         `;
       }).join('')}
     </div>
+        <div class="card">
+      <h3 style="margin-bottom:12px;font-size:14px;color:var(--sub);">💾 Backup</h3>
+      <p style="font-size:12px;color:var(--sub);margin-bottom:12px;">
+        Seus dados ficam salvos só neste aparelho. Faça backup de vez em quando.
+      </p>
+      <button class="btn-primario" id="btn-export" style="background:var(--verde);margin-top:0;">
+        📤 Exportar JSON
+      </button>
+      <button class="btn-primario" id="btn-import" style="background:var(--card2);margin-top:8px;">
+        📥 Importar JSON
+      </button>
+      <input type="file" id="file-import" accept=".json,application/json" style="display:none;">
+    </div>
   `;
 }
 
@@ -505,6 +518,20 @@ function bindEventos() {
   });
   const bf = document.getElementById('btn-add-fixa');
   if (bf) bf.onclick = salvarFixa;
+    // Backup
+  const btnExport = document.getElementById('btn-export');
+  if (btnExport) btnExport.onclick = exportarJSON;
+
+  const btnImport = document.getElementById('btn-import');
+  const fileInput = document.getElementById('file-import');
+  if (btnImport && fileInput) {
+    btnImport.onclick = () => fileInput.click();
+    fileInput.onchange = (e) => {
+      const file = e.target.files[0];
+      if (file) importarJSON(file);
+      e.target.value = '';   // permite importar o mesmo arquivo de novo depois
+    };
+  }
 
   // Relatórios
   const per = document.getElementById('r-periodo');
@@ -600,7 +627,78 @@ function salvarEdicao() {
   toast('Alterado!');
   render();
 }
+// ============ BACKUP: EXPORTAR ============
+function exportarJSON() {
+  const dados = {
+    app: 'meus-gastos',
+    versao: 1,
+    exportadoEm: new Date().toISOString(),
+    categorias: db.categorias,
+    fixas: db.fixas,
+    lancamentos: db.lancamentos,
+    nextId: db.nextId,
+  };
 
+  const json = JSON.stringify(dados, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+
+  const hoje = new Date();
+  const nome = `gastos-backup-${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}.json`;
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = nome;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+
+  toast('Backup baixado!');
+}
+
+// ============ BACKUP: IMPORTAR ============
+function importarJSON(file) {
+  const reader = new FileReader();
+
+  reader.onload = (e) => {
+    try {
+      const dados = JSON.parse(e.target.result);
+
+      // Validação básica
+      if (!dados || typeof dados !== 'object') throw new Error('Arquivo inválido.');
+      if (!Array.isArray(dados.lancamentos) || !Array.isArray(dados.fixas) || !Array.isArray(dados.categorias)) {
+        throw new Error('Estrutura do arquivo não reconhecida.');
+      }
+
+      const qtd = dados.lancamentos.length;
+      const msg = `Importar ${qtd} lançamentos, ${dados.fixas.length} fixas e ${dados.categorias.length} categorias?\n\n⚠️ Isso SUBSTITUI todos os dados atuais. Faça um backup antes se quiser guardar o que tem hoje.`;
+      if (!confirm(msg)) return;
+
+      // Substitui tudo
+      db.categorias = dados.categorias;
+      db.fixas = dados.fixas;
+      db.lancamentos = dados.lancamentos;
+      db.nextId = dados.nextId || {
+        fixa: (Math.max(0, ...dados.fixas.map(f => f.id || 0)) + 1),
+        lancamento: (Math.max(0, ...dados.lancamentos.map(l => l.id || 0)) + 1),
+      };
+
+      salvar();
+
+      // Volta pra home
+      state.tab = 'home';
+      state.mesRef = mesAtual();
+      toast('Dados importados!');
+      render();
+    } catch (err) {
+      alert('❌ Erro ao importar:\n' + err.message);
+    }
+  };
+
+  reader.onerror = () => alert('Não foi possível ler o arquivo.');
+  reader.readAsText(file);
+}
 // ============ HELPERS ============
 function mudarMes(ym, delta) {
   const [a, m] = ym.split('-').map(Number);
