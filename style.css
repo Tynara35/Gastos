@@ -1,0 +1,153 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0f172a;
+  --card: #1e293b;
+  --card2: #334155;
+  --texto: #f1f5f9;
+  --sub: #94a3b8;
+  --primaria: #6366f1;
+  --verde: #10b981;
+  --vermelho: #ef4444;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--texto);
+  min-height: 100vh;
+  padding-bottom: 80px;
+  -webkit-font-smoothing: antialiased;
+}
+
+header {
+  padding: 20px 16px 12px;
+  text-align: center;
+  background: linear-gradient(180deg, #1e293b 0%, var(--bg) 100%);
+}
+header h1 { font-size: 20px; font-weight: 600; }
+
+main { padding: 12px 16px 20px; max-width: 640px; margin: 0 auto; }
+
+nav {
+  position: fixed; bottom: 0; left: 0; right: 0;
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  background: #0b1220;
+  border-top: 1px solid #1e293b;
+  padding: 8px 0 max(8px, env(safe-area-inset-bottom));
+  z-index: 100;
+}
+nav button {
+  background: none; border: none; color: var(--sub);
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  font-size: 11px; padding: 6px; cursor: pointer;
+}
+nav button span { font-size: 20px; }
+nav button.ativo { color: var(--primaria); }
+
+.card {
+  background: var(--card);
+  border-radius: 14px;
+  padding: 16px;
+  margin-bottom: 14px;
+}
+
+.resumo .mes-nav {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 10px;
+}
+.resumo .mes-nav button {
+  background: var(--card2); border: none; color: var(--texto);
+  width: 32px; height: 32px; border-radius: 50%; cursor: pointer;
+  font-size: 16px;
+}
+.resumo .total { font-size: 32px; font-weight: 700; text-align: center; margin: 8px 0; }
+.resumo .linha-2 {
+  display: flex; justify-content: space-around;
+  font-size: 13px; color: var(--sub);
+}
+
+.dia { margin-bottom: 16px; }
+.dia-header {
+  font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;
+  color: var(--sub); margin-bottom: 8px; padding-left: 4px;
+}
+
+.lanc {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--card); border-radius: 12px;
+  padding: 12px; margin-bottom: 8px;
+}
+.lanc .icone {
+  width: 40px; height: 40px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px; flex-shrink: 0;
+}
+.lanc .info { flex: 1; min-width: 0; }
+.lanc .desc { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lanc .sub { font-size: 12px; color: var(--sub); margin-top: 2px; }
+.lanc .valor { font-weight: 600; white-space: nowrap; }
+.lanc .del {
+  background: none; border: none; color: var(--sub);
+  font-size: 16px; cursor: pointer; padding: 4px;
+}
+
+/* Formulários */
+label { display: block; font-size: 13px; color: var(--sub); margin-bottom: 6px; margin-top: 12px; }
+input, select, textarea {
+  width: 100%; background: var(--bg); color: var(--texto);
+  border: 1px solid var(--card2); border-radius: 10px;
+  padding: 12px; font-size: 15px; font-family: inherit;
+}
+input:focus, select:focus { outline: 2px solid var(--primaria); border-color: transparent; }
+
+.icones-grid {
+  display: grid; grid-template-columns: repeat(8, 1fr);
+  gap: 6px; margin-top: 6px;
+}
+.icones-grid button {
+  aspect-ratio: 1; background: var(--bg); border: 2px solid transparent;
+  border-radius: 10px; font-size: 20px; cursor: pointer;
+}
+.icones-grid button.sel { border-color: var(--primaria); background: #6366f133; }
+
+.toggle {
+  display: flex; background: var(--bg); border-radius: 10px;
+  padding: 4px; gap: 4px; margin-top: 6px;
+}
+.toggle button {
+  flex: 1; background: none; border: none; color: var(--sub);
+  padding: 10px; border-radius: 8px; font-size: 14px; cursor: pointer;
+  font-weight: 500;
+}
+.toggle button.ativo { background: var(--primaria); color: #fff; }
+
+.btn-primario {
+  width: 100%; background: var(--primaria); color: #fff;
+  border: none; border-radius: 10px; padding: 14px;
+  font-size: 16px; font-weight: 600; cursor: pointer; margin-top: 20px;
+}
+.btn-primario:active { opacity: 0.8; }
+
+.vazio { text-align: center; color: var(--sub); padding: 40px 20px; font-size: 14px; }
+
+/* Gráfico de barras simples */
+.barra-linha { margin-bottom: 12px; }
+.barra-linha .top {
+  display: flex; justify-content: space-between;
+  font-size: 13px; margin-bottom: 4px;
+}
+.barra {
+  height: 8px; background: var(--card2); border-radius: 4px; overflow: hidden;
+}
+.barra > div { height: 100%; border-radius: 4px; transition: width 0.3s; }
+
+.filtros { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+
+.toast {
+  position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%);
+  background: var(--verde); color: #fff; padding: 10px 20px;
+  border-radius: 20px; font-size: 14px; z-index: 200;
+  animation: aparecer 0.3s ease;
+}
+@keyframes aparecer { from { opacity: 0; transform: translate(-50%, 10px); } }
