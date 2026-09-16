@@ -692,7 +692,6 @@ function salvarFixa() {
   toast('Fixa adicionada!');
   render();
 }
-}
 function salvarEdicao() {
   const l = db.lancamentos.find(x => x.id == state.editId);
   if (!l) return;
