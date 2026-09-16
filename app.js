@@ -83,9 +83,19 @@ let state = {
 };
 
 // ============ RECORRÊNCIA (gera fixas do mês) ============
-function garantirFixasDoMes() {
+function garantirFixasDoMes(ym) {
+  // ym = "2025-09" (o mês que está sendo exibido)
+  if (!ym) {
+    const hoje = new Date();
+    ym = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
+  }
+
+  // Só cria para o mês atual ou meses FUTUROS.
+  // Meses passados ficam intactos (pra não bagunçar histórico).
   const hoje = new Date();
-  const ym = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
+  const mesAtualStr = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
+  if (ym < mesAtualStr) return;
+
   let adicionou = false;
   db.fixas.filter(f => f.ativa).forEach(f => {
     const jaTem = db.lancamentos.some(l => l.fixaId === f.id && l.data.startsWith(ym));
@@ -110,7 +120,7 @@ function garantirFixasDoMes() {
 
 // ============ RENDER PRINCIPAL ============
 function render() {
-  garantirFixasDoMes();
+  garantirFixasDoMes(state.mesRef);
   const app = document.getElementById('app');
   if (state.tab === 'home') app.innerHTML = renderHome();
   else if (state.tab === 'add') app.innerHTML = renderAdd();
