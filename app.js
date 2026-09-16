@@ -423,7 +423,6 @@ function renderFixas() {
           </div>
         `;
       }).join('')}
-    </div>
         <div class="card">
       <h3 style="margin-bottom:12px;font-size:14px;color:var(--sub);">💾 Backup</h3>
       <p style="font-size:12px;color:var(--sub);margin-bottom:12px;">
@@ -436,6 +435,16 @@ function renderFixas() {
         📥 Importar JSON
       </button>
       <input type="file" id="file-import" accept=".json,application/json" style="display:none;">
+    </div>
+
+    <div class="card" style="border:1px solid #7f1d1d;">
+      <h3 style="margin-bottom:8px;font-size:14px;color:#fca5a5;">⚠️ Zona de perigo</h3>
+      <p style="font-size:12px;color:var(--sub);margin-bottom:12px;">
+        Apaga TODOS os dados do app: lançamentos, fixas, categorias e configurações. Não tem volta.
+      </p>
+      <button class="btn-primario" id="btn-reset" style="background:var(--vermelho);margin-top:0;">
+        🗑️ Apagar tudo e começar do zero
+      </button>
     </div>
   `;
 }
@@ -566,6 +575,9 @@ function bindEventos() {
     };
   }
 
+    // Reset total
+  const btnReset = document.getElementById('btn-reset');
+  if (btnReset) btnReset.onclick = resetarTudo;
   // Relatórios
   const per = document.getElementById('r-periodo');
   if (per) per.querySelectorAll('button').forEach(b => b.onclick = () => {
@@ -731,6 +743,26 @@ function importarJSON(file) {
 
   reader.onerror = () => alert('Não foi possível ler o arquivo.');
   reader.readAsText(file);
+}
+// ============ RESET TOTAL ============
+function resetarTudo() {
+  const qtdLanc = db.lancamentos.length;
+  const qtdFixas = db.fixas.length;
+
+  const msg1 = `⚠️ APAGAR TUDO?\n\nIsso vai apagar:\n• ${qtdLanc} lançamentos\n• ${qtdFixas} fixas\n• Todas as categorias personalizadas\n\nNão tem como desfazer!`;
+  if (!confirm(msg1)) return;
+
+  const msg2 = `Tem CERTEZA?\n\nÚltima chance de cancelar.\n\nSe quiser guardar antes, clique em Cancelar e faça um Exportar JSON primeiro.`;
+  if (!confirm(msg2)) return;
+
+  const msg3 = `Confirmação final.\n\nDigite mentalmente "sim" e clique em OK pra apagar tudo agora.`;
+  if (!confirm(msg3)) return;
+
+  // Apaga do localStorage
+  localStorage.removeItem(KEY);
+
+  // Recarrega o app do zero
+  location.reload();
 }
 // ============ HELPERS ============
 function mudarMes(ym, delta) {
