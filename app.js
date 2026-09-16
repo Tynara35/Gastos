@@ -407,17 +407,19 @@ function renderFixas() {
     <div class="card">
       <h3 style="margin-bottom:12px;font-size:14px;color:var(--sub);">Cadastradas</h3>
       ${db.fixas.length === 0 ? '<p class="vazio" style="padding:10px;">Nenhuma ainda</p>' : ''}
-      ${db.fixas.map(f => {
+          ${db.fixas.map(f => {
         const cat = db.categorias.find(c => c.id == f.categoriaId);
+        const qtd = db.lancamentos.filter(l => l.fixaId === f.id).length;
         return `
           <div class="lanc">
             <span class="icone" style="background:${cat?.cor || '#334155'}33">${f.icone}</span>
             <div class="info">
               <div class="desc">${escape(f.descricao)}</div>
-              <div class="sub">${cat?.nome || ''} · todo dia ${f.diaVencimento}</div>
+              <div class="sub">${cat?.nome || ''} · todo dia ${f.diaVencimento} · ${qtd} lançamento${qtd === 1 ? '' : 's'}</div>
             </div>
             <div class="valor">${fmtMoney(f.valorPadrao)}</div>
-            <button class="del" data-action="del-fixa" data-id="${f.id}">🗑️</button>
+            <button class="del" data-action="arq-fixa" data-id="${f.id}" title="Arquivar (mantém histórico)">🔕</button>
+            <button class="del" data-action="del-fixa" data-id="${f.id}" title="Excluir tudo">🗑️</button>
           </div>
         `;
       }).join('')}
@@ -491,11 +493,42 @@ function bindEventos() {
     if (btnSalvar) btnSalvar.onclick = salvarEdicao;
   }
 
-  // Excluir fixa
+  // Excluir fixa   
   document.querySelectorAll('[data-action="del-fixa"]').forEach(b => b.onclick = () => {
-    if (!confirm('Excluir esta fixa? Lançamentos já criados não serão apagados.')) return;
-    db.fixas = db.fixas.filter(f => f.id != b.dataset.id);
-    salvar(); toast('Fixa excluída'); render();
+    const id = +b.dataset.id;
+    const fixa = db.fixas.find(f => f.id === id);
+    if (!fixa) return;
+
+    const qtd = db.lancamentos.filter(l => l.fixaId === id).length;
+
+    const msg = qtd > 0
+      ? `Excluir a fixa "${fixa.descricao}" e os ${qtd} lançamentos dela em TODOS os meses?\n\nOK = apaga tudo\nCancelar = não faz nada`
+      : `Excluir a fixa "${fixa.descricao}"?`;
+
+    if (!confirm(msg)) return;
+
+    // Apaga o molde
+    db.fixas = db.fixas.filter(f => f.id !== id);
+    // Apaga TODOS os lançamentos vinculados, em qualquer mês
+    db.lancamentos = db.lancamentos.filter(l => l.fixaId !== id);
+
+    salvar();
+    toast('Fixa e lançamentos excluídos');
+    render();
+  });
+
+  // Arquivar fixa (para de lançar, mantém o histórico)
+  document.querySelectorAll('[data-action="arq-fixa"]').forEach(b => b.onclick = () => {
+    const id = +b.dataset.id;
+    const fixa = db.fixas.find(f => f.id === id);
+    if (!fixa) return;
+
+    if (!confirm(`Arquivar "${fixa.descricao}"?\n\nEla para de ser lançada nos próximos meses,\nmas os lançamentos já criados continuam.`)) return;
+
+    fixa.ativa = false;
+    salvar();
+    toast('Fixa arquivada');
+    render();
   });
 
   // Form adicionar
