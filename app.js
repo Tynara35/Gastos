@@ -429,7 +429,7 @@ function renderRel() {
       </div>
     </div>
 
-    <div class="card">
+        <div class="card">
       <div style="font-size:26px;font-weight:700;text-align:center;margin-bottom:8px;">
         ${fmtMoney(total)}
       </div>
@@ -437,6 +437,9 @@ function renderRel() {
         <span>🔁 ${fmtMoney(totalFixo)}</span>
         <span>📊 ${fmtMoney(totalVar)}</span>
       </div>
+      <button class="btn-primario" id="btn-pdf" style="background:#0ea5e9;margin-top:14px;">
+        📄 Exportar PDF
+      </button>
     </div>
 
     <div class="card">
@@ -1051,6 +1054,8 @@ function bindEventos() {
   if (rc) rc.onchange = () => { state.relCategoria = rc.value; render(); };
   const rt = document.getElementById('r-tipo');
   if (rt) rt.onchange = () => { state.relTipo = rt.value; render(); };
+  const btnPdf = document.getElementById('btn-pdf');
+  if (btnPdf) btnPdf.onclick = gerarPDF;
 
   // CONFIG
   const cfgPadrao = document.getElementById('cfg-salvar-padrao');
@@ -1323,6 +1328,185 @@ function resetarTudo() {
 
   localStorage.removeItem(KEY);
   location.reload();
+}
+// ============ EXPORTAR PDF ============
+function gerarPDF() {
+  const filtrados = filtrarRel();
+  const total = filtrados.reduce((s, l) => s + l.valor, 0);
+  const totalFixo = filtrados.filter(l => l.tipo === 'FIXA').reduce((s, l) => s + l.valor, 0);
+  const totalVar = filtrados.filter(l => l.tipo === 'VARIAVEL').reduce((s, l) => s + l.valor, 0);
+
+  const mesRef = state.relPeriodo === 'mes' ? state.relMesRef : null;
+  const renda = mesRef ? rendaDoMes(mesRef) : (db.rendaPadrao || 0);
+
+  // Título do relatório
+  const titulo = state.relPeriodo === 'mes'
+    ? formatMes(state.relMesRef)
+    : `Ano ${state.relAno}`;
+
+  // Agrupa por categoria
+  const porCat = {};
+  filtrados.forEach(l => { porCat[l.categoriaId] = (porCat[l.categoriaId] || 0) + l.valor; });
+  const catOrdenadas = Object.entries(porCat).sort((a, b) => b[1] - a[1]);
+
+  // Agrupa por data (mais recente primeiro)
+  const porData = {};
+  filtrados.forEach(l => { (porData[l.data] ||= []).push(l); });
+  const datas = Object.keys(porData).sort((a, b) => b.localeCompare(a));
+
+  // Top 5
+  const porDesc = {};
+  filtrados.forEach(l => { porDesc[l.descricao] = (porDesc[l.descricao] || 0) + l.valor; });
+  const top5 = Object.entries(porDesc).sort((a, b) => b[1] - a[1]).slice(0, 5);
+
+  // HTML que vai pra impressão
+  const html = `
+    <!DOCTYPE html>
+    <html lang="pt-BR">
+    <head>
+      <meta charset="UTF-8">
+      <title>Relatório - ${titulo}</title>
+      <style>
+        * { box-sizing: border-box; }
+        body {
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+          padding: 30px;
+          color: #1a1a1a;
+          max-width: 800px;
+          margin: 0 auto;
+        }
+        h1 { font-size: 22px; margin-bottom: 4px; color: #1e293b; }
+        .sub { color: #64748b; font-size: 13px; margin-bottom: 20px; }
+        h2 { font-size: 15px; margin-top: 24px; margin-bottom: 10px; color: #334155; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px; }
+
+        .box-total {
+          background: #f1f5f9;
+          border-radius: 10px;
+          padding: 20px;
+          text-align: center;
+          margin-bottom: 16px;
+        }
+        .box-total .valor { font-size: 32px; font-weight: 700; color: #1e293b; }
+        .box-total .linha-2 {
+          display: flex; justify-content: space-around;
+          font-size: 13px; color: #64748b; margin-top: 8px;
+        }
+
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        table th { text-align: left; padding: 8px; background: #f1f5f9; color: #334155; }
+        table td { padding: 8px; border-bottom: 1px solid #e2e8f0; }
+        table td.dir, table th.dir { text-align: right; }
+
+        .barra-linha { margin-bottom: 10px; }
+        .barra-linha .top { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 3px; }
+        .barra { height: 6px; background: #e2e8f0; border-radius: 3px; overflow: hidden; }
+        .barra > div { height: 100%; border-radius: 3px; }
+
+        .data-grupo { margin-bottom: 14px; }
+        .data-titulo { font-size: 12px; color: #64748b; text-transform: uppercase; margin-bottom: 6px; letter-spacing: 0.5px; }
+
+        .rodape { margin-top: 40px; text-align: center; font-size: 11px; color: #94a3b8; }
+
+        @media print {
+          body { padding: 10px; }
+          .noprint { display: none; }
+        }
+      </style>
+    </head>
+    <body>
+      <h1>💰 Relatório de Gastos</h1>
+      <div class="sub">${titulo} · Gerado em ${new Date().toLocaleDateString('pt-BR')}</div>
+
+      <div class="box-total">
+        <div class="valor">${fmtMoney(total)}</div>
+        <div class="linha-2">
+          <span>🔁 Fixo: ${fmtMoney(totalFixo)}</span>
+          <span>📊 Variável: ${fmtMoney(totalVar)}</span>
+        </div>
+        ${renda > 0 ? `
+          <div style="margin-top:12px;padding-top:10px;border-top:1px solid #cbd5e1;font-size:12px;color:#64748b;">
+            Renda: ${fmtMoney(renda)} ·
+            ${total <= renda
+              ? `Sobrou <strong style="color:#10b981;">${fmtMoney(renda - total)}</strong>`
+              : `Estourou <strong style="color:#ef4444;">${fmtMoney(total - renda)}</strong>`
+            }
+          </div>
+        ` : ''}
+      </div>
+
+      <h2>📊 Por categoria</h2>
+      ${catOrdenadas.map(([id, valor]) => {
+        const cat = db.categorias.find(c => c.id == id);
+        const pct = total ? (valor / total * 100) : 0;
+        return `
+          <div class="barra-linha">
+            <div class="top">
+              <span>${cat?.icone || '📦'} ${cat?.nome || 'Outros'}</span>
+              <span>${fmtMoney(valor)} · ${pct.toFixed(0)}%</span>
+            </div>
+            <div class="barra"><div style="width:${pct}%;background:${cat?.cor || '#64748b'};"></div></div>
+          </div>
+        `;
+      }).join('')}
+
+      ${top5.length > 0 ? `
+        <h2>🔥 Top 5 maiores gastos</h2>
+        ${top5.map(([nome, valor], i) => {
+          const pct = total ? (valor / total * 100) : 0;
+          return `
+            <div class="barra-linha">
+              <div class="top">
+                <span>${['🥇','🥈','🥉','4º','5º'][i]} ${escape(nome)}</span>
+                <span>${fmtMoney(valor)} · ${pct.toFixed(0)}%</span>
+              </div>
+              <div class="barra"><div style="width:${pct}%;background:#3b82f6;"></div></div>
+            </div>
+          `;
+        }).join('')}
+      ` : ''}
+
+      <h2>📋 Detalhamento</h2>
+      ${datas.map(data => `
+        <div class="data-grupo">
+          <div class="data-titulo">${formatDia(data)}</div>
+          <table>
+            ${porData[data].map(l => {
+              const cat = db.categorias.find(c => c.id == l.categoriaId);
+              return `
+                <tr>
+                  <td>${l.icone} ${escape(l.descricao)}</td>
+                  <td>${cat?.nome || ''}</td>
+                  <td class="dir">${fmtMoney(l.valor)}</td>
+                </tr>
+              `;
+            }).join('')}
+          </table>
+        </div>
+      `).join('')}
+
+      <div class="rodape">
+        Meus Gastos · Relatório gerado automaticamente
+      </div>
+    </body>
+    </html>
+  `;
+
+  // Abre numa nova janela e manda imprimir
+  const win = window.open('', '_blank');
+  if (!win) {
+    alert('Não foi possível abrir a janela. Verifique se o navegador está bloqueando pop-ups.');
+    return;
+  }
+  win.document.write(html);
+  win.document.close();
+
+  // Espera o conteúdo carregar antes de mandar imprimir
+  win.onload = () => {
+    setTimeout(() => {
+      win.focus();
+      win.print();
+    }, 300);
+  };
 }
 
 // ============ INIT ============
